@@ -16,44 +16,99 @@ RETRY_DELAY = 10
 
 # ENDPOINTS - Verificar si realmente son todos iguales
 ENDPOINTS = {
-    "Consulta_1": "System.MaterialTransactions.List.View1",
-    "Consulta_2": "System.MaterialTransactions.List.View1",
-    "Consulta_3": "System.MaterialTransactions.List.View1",
-    "Consulta_4": "System.InventoryItems.List.View4"
+    "Transacciones de materiales": "System.MaterialTransactions.List.View1",
+    "Conciliacion de inventario": "Ardisa.InventoryReconciliation.List.View2",
+    "Inventario de materiales": "System.InventoryItems.List.View4",
+    "Entregas de salida": "System.OutboundDeliveries.List.View1",
+    "Salida de mercancia": "System.GoodsIssues.List.View1",
+    "Entradas de mercancia": "System.GoodsRecipts.List.View1",
+    "Envios entrantes": "Ardisa.InboundDeliveries.List.View1",
+    "Documentos OV/FR/ST": "Ardisa.SalesOrders.List.View1",
+    "Tareas": "System.Tasks.List.View3",
+    "Inventario Ciclico": "System.StockCountingItemVars.List.View1"
 }
 
 # Configuración de las consultas corregidas
 QUERY_CONFIG = [
     {
-        "name": "Consulta_1",
+        "name": "Transacciones de materiales",
         "params": {
             "orderby": "ctxn_transaction_date desc",
-            "take": "30000",
-            "where": "ctxn_movement_type ilike '261%%' and (ctxn_transaction_date > current_date - 120) and (ctxn_warehouse_code ilike '1145') and (ctxn_primary_uom_code ilike 'Und')"  # Corregido el formato del LIKE
+            "take": "10000",
+            "where": "ctxn_transaction_date > current_date - 2"
         }
     },
     {
-        "name": "Consulta_2",
+        "name": "Conciliacion de inventario",
         "params": {
-            "orderby": "ctxn_transaction_date desc",
-            "take": "30000",
-            "where": "ctxn_movement_type ilike '261%%' and (ctxn_transaction_date > current_date - 120) and ctxn_warehouse_code ilike '1145' and not (ctxn_primary_uom_code ilike 'Und')"
-        }
-    },
-    {
-        "name": "Consulta_3",
-        "params": {
-            "orderby": "ctxn_transaction_date desc",
-            "take": "30000",
-            "where": "(ctxn_movement_type ilike '261%%') and (ctxn_transaction_date > current_date - 120) and (ctxn_warehouse_code ilike '1290')"  # Paréntesis añadidos para claridad
+            "orderby": "snap_date desc",
+            "take": "10000",
+            "where": "snap_date > current_date - 2"
         }
     },
         {
-        "name": "Consulta_4",
+        "name": "Inventario de materiales",
         "params": {
             "take": "20000"
         }
+    },
+        {
+        "name": "Entregas de salida",
+        "params": {
+            "orderby": "codv_created_on desc",
+            "take": "1000",
+            "where": "codv_created_on > current_date - 1"
+        }
+    },
+        {
+        "name": "Salida de mercancia",
+        "params": {
+            "orderby": "cgis_created_on desc",
+            "take": "1000",
+            "where": "cgis_created_on > current_date - 1"
+        }
+    },
+        {
+        "name": "Entradas de mercancia",
+        "params": {
+            "orderby": "cgre_created_on desc",
+            "take": "1000",
+            "where": "cgre_created_on > current_date - 1"
+        }
+    },
+        {
+        "name": "Envios entrantes",
+        "params": {
+            "orderby": "cdoc_date desc",
+            "take": "1000",
+            "where": "cdoc_date > current_date - 2"
+        }
+    },
+        {
+        "name": "Documentos OV/FR/ST",
+        "params": {
+            "orderby": "cslo_created_on desc",
+            "take": "1000",
+            "where": "cslo_created_on > current_date - 2"
+        }
+    },
+        {
+        "name": "Tareas",
+        "params": {
+            "orderby": "ctsk_created_on desc",
+            "take": "5000",
+            "where": "ctsk_created_on > current_date - 1"
+        }
+    },
+        {
+        "name": "Inventario Ciclico",
+        "params": {
+            "orderby": "DocDate desc",
+            "take": "5000",
+            "where": "DocDate > current_date - 2 and ItemClosed ilike 'SI'"
+        }
     }
+
 ]
 
 def build_url(endpoint, params):
