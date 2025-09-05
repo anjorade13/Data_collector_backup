@@ -1,4 +1,4 @@
-name: Consultas Power BI
+name: Data_collector_backup
 
 on:
   schedule:
