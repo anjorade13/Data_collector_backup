@@ -2,8 +2,9 @@ import os
 import requests
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
+import re
 
 # Configuración segura desde secretos
 TOKEN = os.getenv("API_TOKEN")
@@ -14,7 +15,7 @@ MAX_RETRIES = 0
 REQUEST_DELAY = 15
 RETRY_DELAY = 10
 
-# ENDPOINTS - Verificar si realmente son todos iguales
+# ENDPOINTS
 ENDPOINTS = {
     "Transacciones de materiales": "System.MaterialTransactions.List.View1",
     "Conciliacion de inventario": "Ardisa.InventoryReconciliation.List.View2",
@@ -28,7 +29,7 @@ ENDPOINTS = {
     "Inventario Ciclico": "System.StockCountingItemVars.List.View1"
 }
 
-# Configuración de las consultas corregidas
+# Configuración de las consultas
 QUERY_CONFIG = [
     {
         "name": "Transacciones de materiales",
@@ -46,13 +47,13 @@ QUERY_CONFIG = [
             "where": "snap_date > current_date - 2"
         }
     },
-        {
+    {
         "name": "Inventario de materiales",
         "params": {
             "take": "20000"
         }
     },
-        {
+    {
         "name": "Entregas de salida",
         "params": {
             "orderby": "codv_created_on desc",
@@ -60,7 +61,7 @@ QUERY_CONFIG = [
             "where": "codv_created_on > current_date - 1"
         }
     },
-        {
+    {
         "name": "Salida de mercancia",
         "params": {
             "orderby": "cgis_created_on desc",
@@ -68,7 +69,7 @@ QUERY_CONFIG = [
             "where": "cgis_created_on > current_date - 1"
         }
     },
-        {
+    {
         "name": "Entradas de mercancia",
         "params": {
             "orderby": "cgre_created_on desc",
@@ -76,7 +77,7 @@ QUERY_CONFIG = [
             "where": "cgre_created_on > current_date - 1"
         }
     },
-        {
+    {
         "name": "Envios entrantes",
         "params": {
             "orderby": "cdoc_date desc",
@@ -84,7 +85,7 @@ QUERY_CONFIG = [
             "where": "cdoc_date > current_date - 2"
         }
     },
-        {
+    {
         "name": "Documentos OV/FR/ST",
         "params": {
             "orderby": "cslo_created_on desc",
@@ -92,7 +93,7 @@ QUERY_CONFIG = [
             "where": "cslo_created_on > current_date - 2"
         }
     },
-        {
+    {
         "name": "Tareas",
         "params": {
             "orderby": "ctsk_created_on desc",
@@ -100,7 +101,7 @@ QUERY_CONFIG = [
             "where": "ctsk_created_on > current_date - 1"
         }
     },
-        {
+    {
         "name": "Inventario Ciclico",
         "params": {
             "orderby": "DocDate desc",
@@ -108,17 +109,24 @@ QUERY_CONFIG = [
             "where": "DocDate > current_date - 2 and ItemClosed ilike 'SI'"
         }
     }
-
 ]
+
+def get_colombia_time():
+    """Obtiene la fecha y hora actual en zona horaria de Colombia (UTC-5)"""
+    return datetime.now(timezone(timedelta(hours=-5)))
 
 def build_url(endpoint, params):
     param_parts = []
     for key, value in params.items():
-        # Codificar valores para URL
         encoded_value = quote(str(value))
         param_parts.append(f"{key}={encoded_value}")
     url = f"{BASE_URL}{endpoint}?{'&'.join(param_parts)}"
     return url
+
+def sanitize_filename(name):
+    """Convierte un nombre a formato seguro para nombres de archivo"""
+    # Reemplazar caracteres no permitidos con guiones bajos
+    return re.sub(r'[\\/*?:"<>|]', "_", name)
 
 def fetch_data(url, name):
     print(f"\n🔗 URL generada para {name}:\n{url}\n")
@@ -129,7 +137,6 @@ def fetch_data(url, name):
             response.raise_for_status()
             data = response.json()
             
-            # Mejor manejo de respuestas vacías o inválidas
             if not data:
                 print(f"⚠️  {name} no devolvió datos (JSON vacío).")
                 return None
@@ -137,9 +144,21 @@ def fetch_data(url, name):
             if isinstance(data, dict) and data.get("error"):
                 print(f"⚠️  Error en {name}: {data.get('error')}")
                 return None
+            
+            # Extraer solo el array "message" de la respuesta
+            if isinstance(data, dict) and "message" in data:
+                message_data = data["message"]
+                if not message_data:
+                    print(f"⚠️  {name} no tiene datos en el array 'message'.")
+                    return None
+                df = pd.DataFrame(message_data)
+            else:
+                print(f"⚠️  La respuesta de {name} no contiene el array 'message'.")
+                return None
                 
-            df = pd.json_normalize(data)
-            df["load_timestamp"] = datetime.now().isoformat()
+            # Agregar metadata con fecha y hora colombiana
+            colombia_time = get_colombia_time()
+            df["metadata_fecha_consulta"] = colombia_time.strftime("%Y-%m-%d %H:%M:%S")
             return df
         except requests.exceptions.RequestException as e:
             print(f"⚠️  Error en {name}: {e}")
@@ -152,12 +171,27 @@ def fetch_data(url, name):
         except ValueError as e:
             print(f"⚠️  Error al decodificar JSON en {name}: {e}")
             return None
+        except KeyError as e:
+            print(f"⚠️  Error al procesar la estructura JSON en {name}: {e}")
+            return None
 
-def save_data(df, name):
+def save_data(df, query_name):
     os.makedirs("data", exist_ok=True)
-    path = f"data/{name}.json"
-    df.to_json(path, orient="records", indent=2)
+    
+    # Obtener fecha y hora colombiana para el nombre del archivo
+    colombia_time = get_colombia_time()
+    timestamp = colombia_time.strftime("%Y%m%d_%H%M%S")
+    
+    # Crear nombre de archivo seguro usando el nombre de la consulta (name de QUERY_CONFIG)
+    safe_query_name = sanitize_filename(query_name)
+    filename = f"{safe_query_name}_{timestamp}.csv"
+    path = os.path.join("data", filename)
+    
+    # Guardar como CSV con encoding UTF-8
+    df.to_csv(path, index=False, encoding='utf-8')
     print(f"💾 Guardado: {path} - {len(df)} registros")
+    
+    return path
 
 def main():
     print("🚀 Iniciando consultas para Power BI")
@@ -165,13 +199,14 @@ def main():
 
     for query in QUERY_CONFIG:
         name = query["name"]
-        url = build_url(ENDPOINTS[name], query["params"])
+        endpoint = ENDPOINTS[name]
+        url = build_url(endpoint, query["params"])
         print(f"\n🔍 Ejecutando consulta: {name}")
         print(f"📋 Parámetros: {query['params']}")
         df = fetch_data(url, name)
         if df is not None:
             print(f"📊 Datos obtenidos: {len(df)} registros")
-            save_data(df, name)
+            save_data(df, name)  # Usamos el nombre de la consulta (name de QUERY_CONFIG)
         else:
             print(f"❌ No se obtuvieron datos para {name}")
         time.sleep(REQUEST_DELAY)
