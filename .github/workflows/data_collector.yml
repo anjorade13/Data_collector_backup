@@ -2,12 +2,15 @@ name: Data_collector_backup
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # 1 AM hora Colombia
+    - cron: '0 6 * * *'  # 1 AM hora Colombia (6 AM UTC)
   workflow_dispatch:
 
 env:
   API_TOKEN: ${{ secrets.API_TOKEN }}
   API_BASE_URL: ${{ secrets.API_BASE_URL }}
+  CORREO_ORIGEN: ${{ secrets.CORREO_ORIGEN }}
+  APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+  CORREO_DESTINO: ${{ secrets.CORREO_DESTINO }}
 
 jobs:
   collect-data:
@@ -16,6 +19,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -26,21 +31,26 @@ jobs:
       run: |
         pip install pandas requests
 
+    - name: List files (para debugging)
+      run: |
+        echo "📂 Estructura de archivos:"
+        ls -la
+        echo "📂 Contenido de carpeta actual:"
+        pwd
+
     - name: Run API collector
       run: python api_collector.py
+      env:
+        API_TOKEN: ${{ secrets.API_TOKEN }}
+        API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        CORREO_ORIGEN: ${{ secrets.CORREO_ORIGEN }}
+        APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        CORREO_DESTINO: ${{ secrets.CORREO_DESTINO }}
 
     - name: List output files
       run: |
-        echo "📂 Archivos generados:"
-        ls -lh data/
-
-    - name: Commit and push data
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add data/
-        git diff --quiet && git diff --staged --quiet || \
-          (git commit -m "Auto-update: $(date +'%Y-%m-%d %H:%M')" && git push)
+        echo "📂 Archivos generados en data/:"
+        ls -lh data/ || echo "No existe carpeta data"
 
     - name: Upload as artifact
       uses: actions/upload-artifact@v4
@@ -48,3 +58,4 @@ jobs:
         name: powerbi-csv-data
         path: data/*.csv
         retention-days: 3
+      if: always()  # Sube el artifact incluso si falla el correo
