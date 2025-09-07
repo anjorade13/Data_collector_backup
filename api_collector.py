@@ -36,7 +36,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "ctxn_transaction_date desc",
             "take": "10000",
-            "where": "ctxn_transaction_date > current_date - 2"
+            "where": "ctxn_transaction_date = current_date - 1"
         }
     },
     {
@@ -44,7 +44,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "snap_date desc",
             "take": "10000",
-            "where": "snap_date > current_date - 2"
+            "where": "snap_date = current_date - 1"
         }
     },
     {
@@ -58,7 +58,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "codv_created_on desc",
             "take": "1000",
-            "where": "codv_created_on > current_date - 1"
+            "where": "(codv_created_on > current_date - 1) and (codv_created_on < current_date)"
         }
     },
     {
@@ -66,7 +66,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "cgis_created_on desc",
             "take": "1000",
-            "where": "cgis_created_on > current_date - 1"
+            "where": "(cgis_created_on > current_date - 1) and (cgis_created_on < current_date)"
         }
     },
     {
@@ -74,7 +74,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "cgre_created_on desc",
             "take": "1000",
-            "where": "cgre_created_on > current_date - 1"
+            "where": "(cgre_created_on > current_date - 1) and (cgre_created_on < current_date)"
         }
     },
     {
@@ -82,7 +82,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "cdoc_date desc",
             "take": "1000",
-            "where": "cdoc_date > current_date - 2"
+            "where": "cdoc_date = current_date - 1"
         }
     },
     {
@@ -90,7 +90,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "cslo_created_on desc",
             "take": "1000",
-            "where": "cslo_created_on > current_date - 2"
+            "where": "(cslo_created_on > current_date - 1) and (cslo_created_on< current_date)"
         }
     },
     {
@@ -98,7 +98,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "ctsk_created_on desc",
             "take": "5000",
-            "where": "ctsk_created_on > current_date - 1"
+            "where": "(ctsk_created_on > current_date - 1) and (ctsk_created_on < current_date)"
         }
     },
     {
@@ -106,7 +106,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "DocDate desc",
             "take": "5000",
-            "where": "DocDate > current_date - 2 and ItemClosed ilike 'SI'"
+            "where": "DocDate = current_date - 1 and ItemClosed ilike 'SI'"
         }
     }
 ]
@@ -125,8 +125,23 @@ def build_url(endpoint, params):
 
 def sanitize_filename(name):
     """Convierte un nombre a formato seguro para nombres de archivo"""
-    # Reemplazar caracteres no permitidos con guiones bajos
     return re.sub(r'[\\/*?:"<>|]', "_", name)
+
+def clean_string(value):
+    """Limpia strings reemplazando saltos de línea y retornos de carro"""
+    if isinstance(value, str):
+        # Reemplazar saltos de línea y retornos de carro con espacios
+        value = value.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
+        # Eliminar espacios múltiples consecutivos
+        value = re.sub(r'\s+', ' ', value).strip()
+    return value
+
+def clean_dataframe(df):
+    """Limpia todos los campos string del DataFrame"""
+    for column in df.columns:
+        if df[column].dtype == 'object':  # Columnas que contienen strings
+            df[column] = df[column].apply(clean_string)
+    return df
 
 def fetch_data(url, name):
     print(f"\n🔗 URL generada para {name}:\n{url}\n")
@@ -156,6 +171,9 @@ def fetch_data(url, name):
                 print(f"⚠️  La respuesta de {name} no contiene el array 'message'.")
                 return None
                 
+            # Limpiar los datos (remover saltos de línea)
+            df = clean_dataframe(df)
+                
             # Agregar metadata con fecha y hora colombiana
             colombia_time = get_colombia_time()
             df["metadata_fecha_consulta"] = colombia_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -182,7 +200,7 @@ def save_data(df, query_name):
     colombia_time = get_colombia_time()
     timestamp = colombia_time.strftime("%Y%m%d_%H%M%S")
     
-    # Crear nombre de archivo seguro usando el nombre de la consulta (name de QUERY_CONFIG)
+    # Crear nombre de archivo seguro usando el nombre de la consulta
     safe_query_name = sanitize_filename(query_name)
     filename = f"{safe_query_name}_{timestamp}.csv"
     path = os.path.join("data", filename)
@@ -206,7 +224,7 @@ def main():
         df = fetch_data(url, name)
         if df is not None:
             print(f"📊 Datos obtenidos: {len(df)} registros")
-            save_data(df, name)  # Usamos el nombre de la consulta (name de QUERY_CONFIG)
+            save_data(df, name)
         else:
             print(f"❌ No se obtuvieron datos para {name}")
         time.sleep(REQUEST_DELAY)
