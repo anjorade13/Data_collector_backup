@@ -5,11 +5,22 @@ import time
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 import re
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+import glob
 
 # Configuración segura desde secretos
 TOKEN = os.getenv("API_TOKEN")
 BASE_URL = os.getenv("API_BASE_URL")
 HEADERS = {"token": TOKEN}
+
+# Configuración de correo
+EMAIL_ORIGEN = os.getenv("CORREO_ORIGEN")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
+EMAIL_DESTINO = os.getenv("CORREO_DESTINO")
 
 MAX_RETRIES = 0
 REQUEST_DELAY = 15
@@ -211,10 +222,81 @@ def save_data(df, query_name):
     
     return path
 
+def send_email_with_attachments():
+    """Envía los archivos CSV por correo sin comprimir"""
+    if not all([EMAIL_ORIGEN, APP_PASSWORD, EMAIL_DESTINO]):
+        print("⚠️  Faltan credenciales de correo. No se enviará el email.")
+        return False
+    
+    try:
+        # Buscar todos los archivos CSV en la carpeta data
+        csv_files = glob.glob("data/*.csv")
+        
+        if not csv_files:
+            print("⚠️  No hay archivos CSV para enviar.")
+            return False
+        
+        # Configurar el mensaje de correo
+        colombia_time = get_colombia_time()
+        fecha_hora = colombia_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_ORIGEN
+        msg['To'] = EMAIL_DESTINO
+        msg['Subject'] = f"Backup {fecha_hora}"
+        
+        # Cuerpo del mensaje
+        body = "Copia de base de datos realizada con éxito"
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Adjuntar todos los archivos CSV
+        for file_path in csv_files:
+            filename = os.path.basename(file_path)
+            attachment = open(file_path, "rb")
+            
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f"attachment; filename= {filename}")
+            
+            msg.attach(part)
+            attachment.close()
+            print(f"📎 Adjuntando: {filename}")
+        
+        # Enviar correo
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_ORIGEN, APP_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(EMAIL_ORIGEN, EMAIL_DESTINO, text)
+        server.quit()
+        
+        print("✅ Correo enviado exitosamente")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error al enviar correo: {e}")
+        return False
+
+def delete_csv_files():
+    """Elimina todos los archivos CSV de la carpeta data"""
+    try:
+        csv_files = glob.glob("data/*.csv")
+        for file_path in csv_files:
+            os.remove(file_path)
+            print(f"🗑️  Eliminado: {file_path}")
+        
+        print(f"✅ Se eliminaron {len(csv_files)} archivos CSV")
+        return True
+    except Exception as e:
+        print(f"❌ Error al eliminar archivos: {e}")
+        return False
+
 def main():
     print("🚀 Iniciando consultas para Power BI")
     start_time = time.time()
 
+    # Ejecutar consultas y guardar datos
     for query in QUERY_CONFIG:
         name = query["name"]
         endpoint = ENDPOINTS[name]
@@ -228,6 +310,17 @@ def main():
         else:
             print(f"❌ No se obtuvieron datos para {name}")
         time.sleep(REQUEST_DELAY)
+
+    # Enviar archivos por correo
+    print("\n📤 Enviando archivos por correo...")
+    email_sent = send_email_with_attachments()
+    
+    # Eliminar archivos después de enviar el correo
+    if email_sent:
+        print("\n🗑️  Eliminando archivos CSV...")
+        delete_csv_files()
+    else:
+        print("⚠️  Los archivos no se eliminaron porque el correo no se envió correctamente")
 
     duration = time.time() - start_time
     print(f"✅ Proceso finalizado en {duration:.2f} segundos.")
