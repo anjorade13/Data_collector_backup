@@ -69,7 +69,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "codv_created_on desc",
             "take": "1000",
-            "where": "(codv_created_on > current_date - 1) and (codv_created_on < current_date)"
+            "where": "(codv_created_on > current_date - 7) and (codv_created_on < current_date - 6)"
         }
     },
     {
@@ -85,15 +85,15 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "cgre_created_on desc",
             "take": "1000",
-            "where": "(cgre_created_on > current_date - 1) and (cgre_created_on < current_date)"
+            "where": "(cgre_created_on > current_date - 7) and (cgre_created_on < current_date - 6)"
         }
     },
     {
         "name": "Envios entrantes",
         "params": {
-            "orderby": "cdoc_date desc",
+            "orderby": "cdoc_created_on desc",
             "take": "1000",
-            "where": "cdoc_date = current_date - 1"
+            "where": "(cdoc_created_on > current_date - 7) and (cdoc_created_on < current_date - 6)"
         }
     },
     {
@@ -101,7 +101,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "cslo_created_on desc",
             "take": "1000",
-            "where": "(cslo_created_on > current_date - 1) and (cslo_created_on< current_date)"
+            "where": "(cslo_created_on > current_date - 7) and (cslo_created_on< current_date - 6)"
         }
     },
     {
@@ -109,7 +109,7 @@ QUERY_CONFIG = [
         "params": {
             "orderby": "ctsk_created_on desc",
             "take": "5000",
-            "where": "(ctsk_created_on > current_date - 1) and (ctsk_created_on < current_date)"
+            "where": "(ctsk_created_on > current_date - 7) and (ctsk_created_on < current_date - 6)"
         }
     },
     {
