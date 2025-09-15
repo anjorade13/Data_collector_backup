@@ -124,7 +124,8 @@ QUERY_CONFIG = [
 
 def get_colombia_time():
     """Obtiene la fecha y hora actual en zona horaria de Colombia (UTC-5)"""
-    return datetime.now(timezone(timedelta(hours=-5)))
+    colombia_time = datetime.now(timezone(timedelta(hours=-5)))
+    return colombia_time - timedelta(days=1)
 
 def build_url(endpoint, params):
     param_parts = []
