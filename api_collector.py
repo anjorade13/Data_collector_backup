@@ -218,7 +218,8 @@ def save_data(df, query_name):
     path = os.path.join("data", filename)
     
     # Guardar como CSV con encoding UTF-8
-    df.to_csv(path, index=False, encoding='utf-8')
+    # Reemplace encoding= 'utf-8') por encoding='utf-8-sig', na_rep='')
+    df.to_csv(path, index=False, encoding='utf-8-sig', na_rep='')
     print(f"💾 Guardado: {path} - {len(df)} registros")
     
     return path
